@@ -35,6 +35,5 @@ def transcribe_meeting_audio(audio_file: str, language: str) -> str:
 shows all tool names and categories that they got connected to
 
 4. dataset_combined contains ~250 tasks(=userprompts), the ground-truth tool and arguments to use.
-100 tasks are taken from taskbench https://huggingface.co/datasets/microsoft/Taskbench/viewer/multimedia/test?f%5Bn_tools%5D%5Bmin%5D=1&f%5Bn_tools%5D%5Bmax%5D=2&views%5B%5D=multimedia
-150 tasks are self created
+150 tasks are self created. 100 tasks are taken from taskbench's "dailyapis" split. https://huggingface.co/datasets/microsoft/Taskbench/viewer/multimedia/test?f%5Bn_tools%5D%5Bmin%5D=1&f%5Bn_tools%5D%5Bmax%5D=2&views%5B%5D=multimedia
 
