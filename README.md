@@ -25,7 +25,6 @@ def transcribe_meeting_audio(audio_file: str, language: str) -> str:
     """
     Transcribes the audio from a meeting file into text based on a specified language.
     This is useful for converting spoken content from meetings into written form.
-
     Args:
         audio_file (str): Path or filename of the meeting audio.
         language (str): Language code for transcription.
