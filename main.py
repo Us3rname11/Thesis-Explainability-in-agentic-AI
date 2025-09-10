@@ -168,7 +168,7 @@ if __name__ == "__main__":
     ]
     
     # Get a random sample of 20 other tools
-    num_random_tools = 0 # <----------------------------- number of random added tools (20)
+    num_random_tools = 10 # <----------------------------- number of random added tools (20)
     if len(other_tools) > num_random_tools:
         random_sample = random.sample(other_tools, num_random_tools)
         print(f"Adding a random sample of {len(random_sample)} tools from other categories.")
