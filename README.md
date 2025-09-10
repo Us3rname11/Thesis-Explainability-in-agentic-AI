@@ -19,7 +19,7 @@ what it does:
 2. custom_tools.py
 Contains all tools that the agent will have access to.
 Tools in don't have a functional part, only a "pass". The rationale beeing: 1. We only examine the first generation step, so we do not rely on the results of the tool/api for the next steps. 2. The LLM only knows the function name, description and arguments durcing inference, so the model believes it is a functional tool.
-
+```
 @tool
 def transcribe_meeting_audio(audio_file: str, language: str) -> str:
     """
@@ -30,7 +30,7 @@ def transcribe_meeting_audio(audio_file: str, language: str) -> str:
         language (str): Language code for transcription.
     """
     pass
-
+```
 3. tool_list_combined.json
 shows all tool names and categories that they got connected to
 
