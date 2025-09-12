@@ -3,8 +3,10 @@ import json
 import random
 import argparse
 import dill
+import torch
 from datetime import datetime
 from smolagents import TransformersModel, CodeAgent, LogLevel
+from smolagents.models import ChatMessage
 from custom_tools import *
 import inseq
 from transformers import AutoTokenizer
@@ -13,7 +15,7 @@ from transformers import AutoTokenizer
 # == 1. Function Definition
 # ==============================================================================
 
-def run_my_agent(task_prompt: str, tools_to_use: list) -> str:
+def run_my_agent(task_prompt: str, tools_to_use: list, model: TransformersModel) -> str:
     """
     Runs the LLM agent.
     
@@ -26,17 +28,28 @@ def run_my_agent(task_prompt: str, tools_to_use: list) -> str:
 
     my_tools = tools_to_use
 
-    model = TransformersModel(model_id=model_id)
+    """
+    model = TransformersModel(
+        model_id=model_id,
+        device_map="auto",
+        torch_dtype="auto",
+        #attn_implementation="eager",
+    )
+    """
     agent = CodeAgent(
         model=model, 
         #add_base_tools=True, 
         tools=my_tools,
         verbosity_level=LogLevel.INFO , #LogLevel.DEBUG, 
         max_steps=1
-        )
+    )
     agent.run(task_prompt)
 
-    return agent.memory.get_full_steps()
+    agent_memory = agent.memory.get_full_steps()
+
+    torch.cuda.empty_cache()
+
+    return agent_memory
 
 
 def prepare_for_inseq(memory_steps, tokenizer):
@@ -54,21 +67,21 @@ def prepare_for_inseq(memory_steps, tokenizer):
     """
 
     step1 = memory_steps[1]  # first step with actual model I/O
-    messages = step1["model_input_messages"]
-    assistant_msg = step1["model_output_message"]
+    messages: list[ChatMessage] = step1["model_input_messages"]
+    assistant_msg: dict = step1["model_output_message"]
 
     # Flatten the content lists into strings
-    def extract_text(msg):
-        if isinstance(msg["content"], list):
+    def extract_text(msg: ChatMessage) -> str:
+        if isinstance(msg.content, list):
             return "".join(
-                part["text"] for part in msg["content"] if part["type"] == "text"
+                part["text"] for part in msg.content if part["type"] == "text"
             )
-        elif isinstance(msg["content"], str):
-            return msg["content"]
+        elif isinstance(msg.content, str):
+            return msg.content
         return ""
 
-    system_text = extract_text(next(m for m in messages if m["role"].name == "SYSTEM"))
-    user_text   = extract_text(next(m for m in messages if m["role"].name == "USER"))
+    system_text = extract_text(next(m for m in messages if m.role.name == "SYSTEM"))
+    user_text   = extract_text(next(m for m in messages if m.role.name == "USER"))
 
     # Format input exactly like Qwen sees it
     input_text = tokenizer.apply_chat_template(
@@ -86,7 +99,7 @@ def prepare_for_inseq(memory_steps, tokenizer):
     return input_text, output_text
 
 
-def run_inseq_analysis(prompt: str, generated_text: str) -> object:
+def run_inseq_analysis(prompt: str, generated_text: str, inseq_model: inseq.AttributionModel) -> object:
     """
     Runs the Inseq attribution analysis on an agent run.
     
@@ -99,7 +112,14 @@ def run_inseq_analysis(prompt: str, generated_text: str) -> object:
     """
     print("  -> Running Inseq analysis...")
 
-    inseq_model = inseq.load_model(model_id, "attention")#"saliency")#"integrated_gradients") #die choice hier auch als argsparse machen, was dieser function als variable überreicht wird
+    """
+    inseq_model = inseq.load_model(
+        model_id,
+        "saliency",
+        #"attention",
+        #attn_implementation="eager"
+    )#"saliency")#"integrated_gradients") #die choice hier auch als argsparse machen, was dieser function als variable überreicht wird
+    """
 
     attribution_result = inseq_model.attribute(
         prompt,
@@ -115,14 +135,6 @@ def run_inseq_analysis(prompt: str, generated_text: str) -> object:
 # ==============================================================================
 
 if __name__ == "__main__":
-
-    # --- Select Model ID ---
-    model_id_short = "Qwen3-0.6B" #"Qwen3-1.7B" # "Qwen3-4B" # "gemma-3-4b-it"  <----------------- select model size here
-    model_id = "Qwen/" + model_id_short #"google/ 
-
-    # --- Setup Tokenizer ---
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-
     # --- Load models ---
     # On a computer with enough memory, it could be better to load the models here (once)
     # and pass them to the functions. For both smolagents and inseq models.
@@ -131,8 +143,16 @@ if __name__ == "__main__":
     # --- Setup Argument Parser ---
     parser = argparse.ArgumentParser(description="Run agent and Inseq analysis for a specific category of tasks.")
     parser.add_argument("--category", type=str, required=True, help="The category name from the dataset (e.g., 'entertainment and media').")
+    parser.add_argument("--model_name", type=str, required=True)
     args = parser.parse_args()
-    
+
+    # --- Select Model ID ---
+    #model_id_short = "Qwen3-4B" #"Qwen3-1.7B" # "Qwen3-4B" # "gemma-3-4b-it"  <----------------- select model size here
+    model_id_short = args.model_name
+    model_id = "Qwen/" + model_id_short #"google/
+    # --- Setup Tokenizer ---
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+
     selected_category = args.category
     
     # --- Setup Paths and Directories ---
@@ -208,6 +228,21 @@ if __name__ == "__main__":
         exit()
         
     print(f"Found {len(tasks_to_run)} tasks for this category.")
+
+    print(f"\n--- Loading model {model_id} into memory... ---")
+    # Load the model for the agent
+    agent_model = TransformersModel(
+        model_id=model_id,
+        device_map="auto",
+        torch_dtype="auto",
+    )
+
+    inseq_model = inseq.load_model(
+        model=agent_model.model,
+        attribution_method="saliency",
+        tokenizer=agent_model.tokenizer,
+        #"attention",
+    )
     
     # --- Main Processing Loop ---
     for i, task_record in enumerate(tasks_to_run):
@@ -226,7 +261,7 @@ if __name__ == "__main__":
         unique_id = f"{selected_category.replace(' ', '_')}_ID{task_id}_{model_id_short}_{timestamp}"
         
         # 2. Run the agent
-        agent_output_log = run_my_agent(task_prompt, tool_functions)
+        agent_output_log = run_my_agent(task_prompt, tool_functions, agent_model)
         
         # 3. Save the agent's full log output
         agent_output_filename = os.path.join(OUTPUT_DIR, f"{unique_id}_agent_out.dill")
@@ -238,7 +273,7 @@ if __name__ == "__main__":
         agent_input_string, agent_output_string = prepare_for_inseq(agent_output_log, tokenizer)
         
         # 5. Run the Inseq analysis
-        inseq_output_object = run_inseq_analysis(agent_input_string, agent_output_string)
+        inseq_output_object = run_inseq_analysis(agent_input_string, agent_output_string, inseq_model)
         
         # 5. Save the complex Inseq object using dill
         inseq_output_filename = os.path.join(OUTPUT_DIR, f"{unique_id}_inseq_out.dill")

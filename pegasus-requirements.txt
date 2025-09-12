@@ -1,0 +1,10 @@
+accelerate
+datasets
+huggingface-hub
+transformers
+
+dill==0.3.8
+sentencepiece==0.2.0
+smolagents==1.21.3
+
+inseq @ git+https://github.com/inseq-team/inseq.git@1792d1ec6d28f4fe457e61f106dc7b4f49c211cf
