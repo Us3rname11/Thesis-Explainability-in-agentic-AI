@@ -4,6 +4,8 @@ import random
 import argparse
 import dill
 import torch
+import glob
+from typing import List, Tuple
 from datetime import datetime
 from smolagents import TransformersModel, CodeAgent, LogLevel
 from smolagents.models import ChatMessage
@@ -16,6 +18,180 @@ from transformers import AutoTokenizer
 # ==============================================================================
 # == 1. Function Definition
 # ==============================================================================
+def load_tasks_and_filter_solved(
+    tasks_file: str,
+    selected_category: str,
+    output_dir: str,
+    model_id_short: str,
+    agent_suffix: str = "_agent_out.dill",
+    inseq_suffix: str = "_inseq_out.dill",
+) -> Tuple[List[dict], List[str], List[str]]:
+    """
+    Load tasks JSON, filter tasks by the category, and check OUTPUT_DIR for already-completed tasks.
+
+    Args:
+        tasks_file: Path to the JSON file containing tasks.
+        selected_category: Category key whose tasks should be solved.
+        output_dir: Path to dir where files are saved
+        model_id_short: Model name
+        agent_suffix: file ending to look for
+        inseq_suffix: file ending to look for
+
+    Returns:
+        tasks_to_run: list of task records that still need to be processed
+        solved_task_ids: list of task_id strings that are fully solved (both files found for a single unique_id)
+        partial_task_ids: list of task_id strings for which partial output(s) were found (but not both)
+    """
+    # Load tasks JSON
+    try:
+        with open(tasks_file, "r") as f:
+            all_task_records = json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: Tasks file not found at {tasks_file}")
+        exit()
+
+    # Filter by category
+    tasks_in_category = [
+        record for record in all_task_records if record.get("category") == selected_category
+    ]
+
+    if not tasks_in_category:
+        print(f"ERROR: No tasks found for category '{selected_category}' in {tasks_file}")
+        return [], [], []
+
+    # Ensure output directory exists (it is created earlier in your script, but check anyway)
+    if not os.path.isdir(output_dir):
+        print(f"INFO: Output directory '{output_dir}' does not exist yet. Nothing is solved.")
+        os.makedirs(output_dir, exist_ok=True)
+
+    solved_task_ids = []
+    partial_task_ids = []
+    tasks_to_run = []
+
+    # Gather list of files once
+    out_files = set(os.listdir(output_dir))
+
+    for i, record in enumerate(tasks_in_category):
+        # Consistent fallback id
+        raw_task_id = record.get("my_id", f"unknownID_{i}")
+        task_id_str = str(raw_task_id)
+
+        # Prefix used when writing unique_id-based filenames (timestamp appended after this)
+        prefix = f"{selected_category}_ID{task_id_str}_{model_id_short}_"
+
+        # Find files that begin with the prefix
+        matching_files = [fn for fn in out_files if fn.startswith(prefix)]
+
+        if not matching_files:
+            # No outputs at all => schedule it
+            tasks_to_run.append(record)
+            continue
+
+        # Build set of unique bases (unique_id without the final suffix), e.g. everything before _agent_out.dill/_inseq_out.dill
+        bases = set()
+        for fn in matching_files:
+            if fn.endswith(agent_suffix):
+                bases.add(fn[: -len(agent_suffix)])
+            elif fn.endswith(inseq_suffix):
+                bases.add(fn[: -len(inseq_suffix)])
+            else:
+                # file with unexpected suffix, still include its filename as a base candidate (strip extension)
+                base_no_ext = os.path.splitext(fn)[0]
+                bases.add(base_no_ext)
+
+        # For each base check whether both agent and inseq outputs exist for the same base
+        found_full_pair = False
+        for base in bases:
+            agent_file = base + agent_suffix
+            inseq_file = base + inseq_suffix
+            if agent_file in out_files and inseq_file in out_files:
+                found_full_pair = True
+                break
+
+        if found_full_pair:
+            # Fully solved (at least one matching unique_id had both files)
+            solved_task_ids.append(task_id_str)
+            # Do NOT add to tasks_to_run
+        else:
+            # Partial outputs found (some files but no base had both endings). Warn and schedule the task.
+            partial_task_ids.append(task_id_str)
+            print(f"  -> WARNING: Partial outputs found for task ID {task_id_str}. No matching pair of '{agent_suffix}' + '{inseq_suffix}' for the same unique_id. This task will be re-run.")
+            tasks_to_run.append(record)
+
+    # Summary prints
+    if solved_task_ids:
+        print(f"\nAlready fully solved tasks ({len(solved_task_ids)}): {solved_task_ids}")
+    else:
+        print("\nNo fully solved tasks found.")
+
+    if partial_task_ids:
+        print(f"Tasks with partial outputs (will be re-run) ({len(partial_task_ids)}): {partial_task_ids}")
+
+    print(f"Tasks to run (count={len(tasks_to_run)}).")
+
+    return tasks_to_run#, solved_task_ids, partial_task_ids
+
+def load_and_select_tools(tool_list_file: str, selected_category: str, num_random_tools: int = 0):
+    """
+    Load the tool-list JSON and prepare a list of callable tool functions for the
+    given category. This is the refactored code originally present inline in
+    the main execution block under the comment "# --- Load and Select Tools Dynamically ---".
+
+    Args:
+        tool_list_file: Path to the JSON file containing tools grouped by category.
+        selected_category: Category key whose tools should be selected.
+        num_random_tools: Number of random tools to sample and add from other categories (default=0).
+
+    Returns:
+        tool_functions: list of callable tool objects found in globals().
+        final_tool_names: list of tool name strings that were considered.
+        all_tools_by_category: parsed JSON mapping of categories -> tool name lists.
+    """
+
+    # Load tool list JSON
+    try:
+        with open(tool_list_file, 'r') as f:
+            all_tools_by_category = json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: Tool list file not found at {tool_list_file}")
+        exit()
+
+    # Get the tools for the selected category
+    tools_for_category = all_tools_by_category.get(selected_category)
+    if not tools_for_category:
+        print(f"ERROR: Category '{selected_category}' not found in {tool_list_file}")
+        exit()
+    print(f"Found {len(tools_for_category)} tools for category '{selected_category}'.")
+
+    # Flatten all other tools
+    other_tools = [
+        tool_name
+        for category, tool_list in all_tools_by_category.items()
+        for tool_name in tool_list
+        if category != selected_category
+    ]
+
+    # Sample random tools from other categories (if requested)
+    if len(other_tools) > num_random_tools:
+        random_sample = random.sample(other_tools, num_random_tools)
+        print(f"Adding a random sample of {len(random_sample)} tools from other categories.")
+    else:
+        random_sample = other_tools  # Take all if fewer than requested
+        print(f"Adding all {len(random_sample)} available tools from other categories (fewer than {num_random_tools}).")
+
+    # Combine and deduplicate
+    final_tool_names = list(set(tools_for_category + random_sample))
+
+    # Map tool names (strings) to actual callable objects available in globals()
+    tool_functions = []
+    for tool_name in final_tool_names:
+        tool_func = globals().get(tool_name)
+        if tool_func and callable(tool_func):
+            tool_functions.append(tool_func)
+        else:
+            print(f"  -> WARNING: Tool function '{tool_name}' not found and will be skipped.")
+
+    return tool_functions, final_tool_names, all_tools_by_category
 
 def run_my_agent(task_prompt: str, tools_to_use: list, model: TransformersModel) -> str:
     """
@@ -27,24 +203,16 @@ def run_my_agent(task_prompt: str, tools_to_use: list, model: TransformersModel)
     Returns:
         The full log of the agent run as a list object.
     """
-
     my_tools = tools_to_use
 
-    """
-    model = TransformersModel(
-        model_id=model_id,
-        device_map="auto",
-        torch_dtype="auto",
-        #attn_implementation="eager",
-    )
-    """
     agent = CodeAgent(
         model=model, 
         #add_base_tools=True, 
         tools=my_tools,
-        verbosity_level=LogLevel.INFO , #LogLevel.DEBUG, 
+        verbosity_level=LogLevel.INFO,
         max_steps=1
     )
+
     agent.run(task_prompt)
 
     agent_memory = agent.memory.get_full_steps()
@@ -113,14 +281,14 @@ def run_inseq_analysis(prompt: str, generated_text: str, inseq_model: inseq.Attr
     """
     print("  -> Running Inseq analysis...")
 
-    """
+    '''
     inseq_model = inseq.load_model(
         model_id,
-        "saliency",
+        "attention",
         #"attention",
         #attn_implementation="eager"
     )#"saliency")#"integrated_gradients")
-    """
+    '''
 
     attribution_result = inseq_model.attribute(
         prompt,
@@ -143,7 +311,7 @@ def aggregate_inseq_output(attribution_result: object, method: str) -> object:
     """
     print("  -> Aggregating Inseq's output...")
 
-    print(f"Attribution results shape before: {attribution_result.sequence_attributions[0].target_attributions.shape}")
+    print(f"Attribution results shape before aggregation: {attribution_result.sequence_attributions[0].target_attributions.shape}")
     for seq_attr in attribution_result.sequence_attributions:
         if method == "attention":
             # Expect shape [T, S, num_layers, num_heads] -> average over the layers and attention heads
@@ -158,7 +326,7 @@ def aggregate_inseq_output(attribution_result: object, method: str) -> object:
         else:
             raise ValueError(f"Unsupported method '{method}', choose 'attention' or 'integrated_gradients'.")
         
-    print(f"Attribution results shape after: {attribution_result.sequence_attributions[0].target_attributions.shape}")
+    print(f"Attribution results shape after aggregation: {attribution_result.sequence_attributions[0].target_attributions.shape}")
 
     return attribution_result
 
@@ -173,6 +341,7 @@ if __name__ == "__main__":
     parser.add_argument("--category", type=str, required=True, help="The category name from the dataset (e.g., 'entertainment and media').")
     parser.add_argument("--model_name", type=str, required=True, help="e.g. Qwen3-0.6B, Qwen3-1.7B, Qwen3-4B")
     parser.add_argument("--attribution", type=str, required=True, help="Which attribution method is used by Inseq ('attention', 'saliency', 'integrated_gradients').")
+    parser.add_argument("--tools", type=int, default=10, required=False, help="Optional: number of random tools to sample from other categories (default=10).")
     args = parser.parse_args()
 
     # --- Select Model ID ---
@@ -193,69 +362,22 @@ if __name__ == "__main__":
     print(f"Starting process for category: '{selected_category}'")
     
     # --- Load and Select Tools Dynamically ---
-    try:
-        with open(TOOL_LIST_FILE, 'r') as f:
-            all_tools_by_category = json.load(f)
-    except FileNotFoundError:
-        print(f"ERROR: Tool list file not found at {TOOL_LIST_FILE}")
-        exit()
-        
-    # Get the tools for the selected category
-    tools_for_category = all_tools_by_category.get(selected_category)
-    if not tools_for_category:
-        print(f"ERROR: Category '{selected_category}' not found in {TOOL_LIST_FILE}")
-        exit()
-    print(f"Found {len(tools_for_category)} tools for category '{selected_category}'.")
+    num_random_tools = args.tools
+    tool_functions, final_tool_names, all_tools_by_category = load_and_select_tools(TOOL_LIST_FILE, selected_category, num_random_tools)
     
-    # Get a flat list of all other tools
-    other_tools = [
-        tool_name
-        for category, tool_list in all_tools_by_category.items()
-        for tool_name in tool_list
-        if category != selected_category
-    ]
-    
-    # Get a random sample of X other tools
-    num_random_tools = 0 # <----------------------------- number of random added tools (20)
-    if len(other_tools) > num_random_tools:
-        random_sample = random.sample(other_tools, num_random_tools)
-        print(f"Adding a random sample of {len(random_sample)} tools from other categories.")
-    else:
-        random_sample = other_tools  # Take all if less than 20 are available
-        print(f"Adding all {len(random_sample)} available tools from other categories (fewer than {num_random_tools}).")
+    # --- Load Tasks and Filter Solved Ones ---
+    tasks_to_run = load_tasks_and_filter_solved( #tasks_to_run, solved_task_ids, partial_task_ids = load_tasks_and_filter_solved(
+        TASKS_FILE,
+        selected_category,
+        OUTPUT_DIR,
+        model_id_short,
+        agent_suffix="_agent_out.dill",
+        inseq_suffix="_inseq_out.dill",
+    )
 
-    # Combine the lists of tool names and remove duplicates
-    final_tool_names = list(set(tools_for_category + random_sample))
-
-    # Map tool names (strings) to actual function objects
-    tool_functions = []
-    for tool_name in final_tool_names:
-        # Assumes 'from all_smol_agent_tools import *' has put the functions in the global scope
-        tool_func = globals().get(tool_name)
-        if tool_func and callable(tool_func):
-             tool_functions.append(tool_func)
-        else:
-            print(f"  -> WARNING: Tool function '{tool_name}' not found and will be skipped.")
-    
-    # --- Load Tasks ---
-    try:
-        with open(TASKS_FILE, 'r') as f:
-            all_task_records = json.load(f)
-    except FileNotFoundError:
-        print(f"ERROR: Tasks file not found at {TASKS_FILE}")
-        exit()
-        
-    tasks_to_run = [
-        record 
-        for record in all_task_records 
-        if record.get("category") == selected_category
-    ]
-        
     if not tasks_to_run:
-        print(f"ERROR: No tasks found for category '{selected_category}' in {TASKS_FILE}")
-        exit()
-        
-    print(f"Found {len(tasks_to_run)} tasks for this category.")
+        print("No tasks to run. Exiting.")
+        exit() 
 
     print(f"\n--- Loading model {model_id} into memory... ---")
     # Load the model for the agent
@@ -264,12 +386,11 @@ if __name__ == "__main__":
         device_map="auto", #"cpu"
         torch_dtype="auto"
     )
-
+    
     inseq_model = inseq.load_model(
         model=agent_model.model,
         attribution_method=args.attribution,
-        tokenizer=agent_model.tokenizer,
-        #"attention",
+        tokenizer=agent_model.tokenizer
     )
     
     # --- Main Processing Loop ---
@@ -302,13 +423,13 @@ if __name__ == "__main__":
         
         '''
         # für tests
-        with open("dummy_agent_output.dill", 'rb') as file:
+        with open("data/dummy_agent_output.dill", 'rb') as file:
             # Load the data from the file
             dummy_output_log =  dill.load(file)
         
         agent_input_string, agent_output_string = prepare_for_inseq(dummy_output_log, tokenizer)
         '''
-
+        
         # 5.1. Run the Inseq analysis
         inseq_output_object = run_inseq_analysis(agent_input_string, agent_output_string, inseq_model)
 
@@ -320,5 +441,5 @@ if __name__ == "__main__":
         with open(inseq_output_filename, "wb") as f:
             dill.dump(aggregated_inseq_output, f)
         print(f"  -> Inseq object saved to: {inseq_output_filename}")
-
+        
     print("\n All tasks for the category completed successfully!")
