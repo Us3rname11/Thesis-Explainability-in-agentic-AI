@@ -342,6 +342,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str, required=True, help="e.g. Qwen3-0.6B, Qwen3-1.7B, Qwen3-4B")
     parser.add_argument("--attribution", type=str, required=True, help="Which attribution method is used by Inseq ('attention', 'saliency', 'integrated_gradients').")
     parser.add_argument("--tools", type=int, default=10, required=False, help="Optional: number of random tools to sample from other categories (default=10).")
+    parser.add_argument("--start_id", type=str,required=False, help="Optional: Task ID to start execution with. Must exist in the selected category.")
     args = parser.parse_args()
 
     # --- Select Model ID ---
@@ -378,6 +379,24 @@ if __name__ == "__main__":
     if not tasks_to_run:
         print("No tasks to run. Exiting.")
         exit() 
+
+    # --- Handle --start_id ---
+    if args.start_id:
+        start_id_str = str(args.start_id)
+        available_ids = [str(t.get("my_id", f"unknownID_{i}")) for i, t in enumerate(tasks_to_run)]
+
+        if start_id_str not in available_ids:
+            print(f"ERROR: start_id '{start_id_str}' not found in pending tasks for category '{selected_category}'.")
+            print(f"Available IDs in this category (not solved yet): {available_ids}")
+            exit()
+
+        # Slice tasks_to_run to start at the requested task
+        start_index = next(
+            i for i, t in enumerate(tasks_to_run)
+            if str(t.get("my_id", f"unknownID_{i}")) == start_id_str
+        )
+        tasks_to_run = tasks_to_run[start_index:]
+        print(f"Execution will start from task ID {start_id_str} (index {start_index}).")
 
     print(f"\n--- Loading model {model_id} into memory... ---")
     # Load the model for the agent
