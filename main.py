@@ -9,7 +9,9 @@ from smolagents import TransformersModel, CodeAgent, LogLevel
 from smolagents.models import ChatMessage
 from custom_tools import *
 import inseq
+from inseq.data.aggregator import AggregatorPipeline, SequenceAttributionAggregator
 from transformers import AutoTokenizer
+
 
 # ==============================================================================
 # == 1. Function Definition
@@ -65,7 +67,6 @@ def prepare_for_inseq(memory_steps, tokenizer):
     Returns:
         input_text and output_text strings to be used by inseq
     """
-
     step1 = memory_steps[1]  # first step with actual model I/O
     messages: list[ChatMessage] = step1["model_input_messages"]
     assistant_msg: dict = step1["model_output_message"]
@@ -95,7 +96,7 @@ def prepare_for_inseq(memory_steps, tokenizer):
 
     # Assistant output (already a string in smolagents memory)
     output_text = assistant_msg["content"]
-
+    
     return input_text, output_text
 
 
@@ -118,15 +119,47 @@ def run_inseq_analysis(prompt: str, generated_text: str, inseq_model: inseq.Attr
         "saliency",
         #"attention",
         #attn_implementation="eager"
-    )#"saliency")#"integrated_gradients") #die choice hier auch als argsparse machen, was dieser function als variable überreicht wird
+    )#"saliency")#"integrated_gradients")
     """
 
     attribution_result = inseq_model.attribute(
         prompt,
         generated_texts=prompt + generated_text
-        #skip_special_tokens=True ## was will ich hier?
     )
     
+    return attribution_result
+
+def aggregate_inseq_output(attribution_result: object, method: str) -> object:
+    """
+    Squash an Inseq attribution result into 2D target_attributions [T, S], in-place.
+    
+    Args:
+        attribution_result: The FeatureAttributionOutput from Inseq.
+        method: Either "attention" or "integrated_gradients".
+    
+    Returns:
+        The same attribution_result object, modified in-place so that
+        .target_attributions are now of shape [nb_target_tokens, nb_source_tokens].
+    """
+    print("  -> Aggregating Inseq's output...")
+
+    print(f"Attribution results shape before: {attribution_result.sequence_attributions[0].target_attributions.shape}")
+    for seq_attr in attribution_result.sequence_attributions:
+        if method == "attention":
+            # Expect shape [T, S, num_layers, num_heads] -> average over the layers and attention heads
+            seq_attr.target_attributions = seq_attr.target_attributions.mean(dim=(-1, -2))
+
+        elif method == "integrated_gradients":
+            # Expect shape [T, S, num_hidden_feature_dim] -> aggregate over the hidden feature dimension
+            agg = AggregatorPipeline([SequenceAttributionAggregator()])
+            aggregated = seq_attr.aggregate(aggregator=agg)
+            seq_attr.target_attributions = aggregated.target_attributions
+
+        else:
+            raise ValueError(f"Unsupported method '{method}', choose 'attention' or 'integrated_gradients'.")
+        
+    print(f"Attribution results shape after: {attribution_result.sequence_attributions[0].target_attributions.shape}")
+
     return attribution_result
 
 
@@ -135,30 +168,25 @@ def run_inseq_analysis(prompt: str, generated_text: str, inseq_model: inseq.Attr
 # ==============================================================================
 
 if __name__ == "__main__":
-    # --- Load models ---
-    # On a computer with enough memory, it could be better to load the models here (once)
-    # and pass them to the functions. For both smolagents and inseq models.
-    # On my machine (low memory, never calculating the whole dataset) its probably best this way.
-
     # --- Setup Argument Parser ---
     parser = argparse.ArgumentParser(description="Run agent and Inseq analysis for a specific category of tasks.")
     parser.add_argument("--category", type=str, required=True, help="The category name from the dataset (e.g., 'entertainment and media').")
-    parser.add_argument("--model_name", type=str, required=True)
+    parser.add_argument("--model_name", type=str, required=True, help="e.g. Qwen3-0.6B, Qwen3-1.7B, Qwen3-4B")
+    parser.add_argument("--attribution", type=str, required=True, help="Which attribution method is used by Inseq ('attention', 'saliency', 'integrated_gradients').")
     args = parser.parse_args()
 
     # --- Select Model ID ---
-    #model_id_short = "Qwen3-4B" #"Qwen3-1.7B" # "Qwen3-4B" # "gemma-3-4b-it"  <----------------- select model size here
     model_id_short = args.model_name
     model_id = "Qwen/" + model_id_short #"google/
     # --- Setup Tokenizer ---
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-
+    
     selected_category = args.category
     
     # --- Setup Paths and Directories ---
     TASKS_FILE = os.path.join("data", "dataset_combined.json")
     TOOL_LIST_FILE = os.path.join("data", "tool_list_combined.json")
-    OUTPUT_DIR = os.path.join("outputs", selected_category.replace(" ", "_")) #selected_category.replace kann glaub weg
+    OUTPUT_DIR = os.path.join("outputs", selected_category)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
@@ -187,8 +215,8 @@ if __name__ == "__main__":
         if category != selected_category
     ]
     
-    # Get a random sample of 20 other tools
-    num_random_tools = 10 # <----------------------------- number of random added tools (20)
+    # Get a random sample of X other tools
+    num_random_tools = 0 # <----------------------------- number of random added tools (20)
     if len(other_tools) > num_random_tools:
         random_sample = random.sample(other_tools, num_random_tools)
         print(f"Adding a random sample of {len(random_sample)} tools from other categories.")
@@ -233,13 +261,13 @@ if __name__ == "__main__":
     # Load the model for the agent
     agent_model = TransformersModel(
         model_id=model_id,
-        device_map="auto",
-        torch_dtype="auto",
+        device_map="auto", #"cpu"
+        torch_dtype="auto"
     )
 
     inseq_model = inseq.load_model(
         model=agent_model.model,
-        attribution_method="saliency",
+        attribution_method=args.attribution,
         tokenizer=agent_model.tokenizer,
         #"attention",
     )
@@ -258,7 +286,7 @@ if __name__ == "__main__":
         print(f"\n--- Processing Task {i+1}/{len(tasks_to_run)} (ID: {task_id}) ---")
         
         timestamp = datetime.now().strftime("%d-%m_%H-%M-%S")
-        unique_id = f"{selected_category.replace(' ', '_')}_ID{task_id}_{model_id_short}_{timestamp}"
+        unique_id = f"{selected_category}_ID{task_id}_{model_id_short}_{timestamp}"
         
         # 2. Run the agent
         agent_output_log = run_my_agent(task_prompt, tool_functions, agent_model)
@@ -268,17 +296,29 @@ if __name__ == "__main__":
         with open(agent_output_filename, "wb") as f:
             dill.dump(agent_output_log, f)
         print(f"  -> Agent log saved to: {agent_output_filename}")
-
+        
         # 4. Preprocess the models memory to be used as strings by inseq
         agent_input_string, agent_output_string = prepare_for_inseq(agent_output_log, tokenizer)
         
-        # 5. Run the Inseq analysis
-        inseq_output_object = run_inseq_analysis(agent_input_string, agent_output_string, inseq_model)
+        '''
+        # für tests
+        with open("dummy_agent_output.dill", 'rb') as file:
+            # Load the data from the file
+            dummy_output_log =  dill.load(file)
         
-        # 5. Save the complex Inseq object using dill
+        agent_input_string, agent_output_string = prepare_for_inseq(dummy_output_log, tokenizer)
+        '''
+
+        # 5.1. Run the Inseq analysis
+        inseq_output_object = run_inseq_analysis(agent_input_string, agent_output_string, inseq_model)
+
+        # 5.2. Aggregate inseq's output by collapsing non-token-layers
+        aggregated_inseq_output = aggregate_inseq_output(inseq_output_object, method=args.attribution)
+        
+        # 5.3 Save the aggregated Inseq object using dill
         inseq_output_filename = os.path.join(OUTPUT_DIR, f"{unique_id}_inseq_out.dill")
         with open(inseq_output_filename, "wb") as f:
-            dill.dump(inseq_output_object, f)
+            dill.dump(aggregated_inseq_output, f)
         print(f"  -> Inseq object saved to: {inseq_output_filename}")
 
     print("\n All tasks for the category completed successfully!")
