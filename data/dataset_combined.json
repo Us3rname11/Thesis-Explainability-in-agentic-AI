@@ -6971,49 +6971,6 @@
             "my_id": 2013
         },
         {
-            "id": 92400293,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "stock_operation",
-                    "arguments": [
-                        {
-                            "name": "stock",
-                            "type": "string",
-                            "desc": "The stock to do the operation on"
-                        },
-                        {
-                            "name": "operation",
-                            "type": "string",
-                            "desc": "The operation to do, eg. buy, sell, short, cover etc."
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I've gotten really interested in stock market trading lately. As a step into it, could you help me purchase some Apple Inc. (AAPL) stocks?",
-            "tool_steps": [
-                "Step 1: Invoke the stock_operation tool, indicating to buy 'AAPL' stocks"
-            ],
-            "tool_nodes": [
-                {
-                    "task": "stock_operation",
-                    "arguments": [
-                        {
-                            "name": "stock",
-                            "value": "AAPL"
-                        },
-                        {
-                            "name": "operation",
-                            "value": "buy"
-                        }
-                    ]
-                }
-            ],
-            "category": "finance",
-            "synthetic": false,
-            "my_id": 2014
-        },
-        {
             "id": 24713920,
             "n_tools": 1,
             "sampled_nodes": [
@@ -7270,7 +7227,7 @@
                 {
                     "arguments": [
                         {
-                            "name": "action",
+                            "name": "instruction",
                             "value": "money transfer"
                         },
                         {
@@ -7280,10 +7237,6 @@
                         {
                             "name": "amount",
                             "value": 500
-                        },
-                        {
-                            "name": "recipient",
-                            "value": "friend"
                         }
                     ],
                     "task": "online_banking"
@@ -8401,7 +8354,7 @@
             ],
             "instruction": "It's becoming overwhelming to keep track of my finances, could you alleviate some of my burden by preparing my tax return for the year 2022?",
             "tool_steps": [
-                "Step 1: Invoke the prepare_tax_return function with 'year' parameter set to '2022'"
+                "Step 1: Invoke the do_tax_return function with 'year' parameter set to '2022'"
             ],
             "tool_nodes": [
                 {
@@ -8411,46 +8364,12 @@
                             "value": "2022"
                         }
                     ],
-                    "task": "prepare_tax_return"
-                }
-            ],
-            "category": "finance",
-            "synthetic": false,
-            "my_id": 2047
-        },
-        {
-            "id": 25972792,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "do_tax_return",
-                    "arguments": [
-                        {
-                            "name": "year",
-                            "type": "string",
-                            "desc": "The year to do the tax return for"
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I'm struggling a bit with my finances. Could you assist me with filing my tax return for the year 2020?",
-            "tool_steps": [
-                "Step 1: Invoke the do_tax_return function for the year 2020."
-            ],
-            "tool_nodes": [
-                {
-                    "arguments": [
-                        {
-                            "name": "year",
-                            "value": "2020"
-                        }
-                    ],
                     "task": "do_tax_return"
                 }
             ],
             "category": "finance",
             "synthetic": false,
-            "my_id": 2048
+            "my_id": 2047
         },
         {
             "id": 32936349,
@@ -8992,40 +8911,6 @@
             "my_id": 2062
         },
         {
-            "id": 18268820,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "daily_bill_payment",
-                    "arguments": [
-                        {
-                            "name": "bill",
-                            "type": "string",
-                            "desc": "The bill to pay, eg. electricity, water, gas, phone, internet etc."
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I've just realized that today is the due date for my electricity bill. Could you assist me in making the payment?",
-            "tool_steps": [
-                "Step 1: Execute daily_bill_payment with bill type: 'electricity'"
-            ],
-            "tool_nodes": [
-                {
-                    "arguments": [
-                        {
-                            "name": "bill",
-                            "value": "electricity"
-                        }
-                    ],
-                    "task": "daily_bill_payment"
-                }
-            ],
-            "category": "finance",
-            "synthetic": false,
-            "my_id": 2063
-        },
-        {
             "id": 18874441,
             "n_tools": 1,
             "sampled_nodes": [
@@ -9294,49 +9179,6 @@
             "my_id": 2070
         },
         {
-            "id": 70071158,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "send_email",
-                    "arguments": [
-                        {
-                            "name": "email_address",
-                            "type": "string",
-                            "desc": "The email address to send the email to"
-                        },
-                        {
-                            "name": "content",
-                            "type": "string",
-                            "desc": "The content of the email"
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I've got a simple task for you. Could you assist me in sending an email to example@email.com, with a message saying 'Hello, this is an example email content?'",
-            "tool_steps": [
-                "Step 1: Invoke send_email API with parameters 'email_address: example@email.com' and 'content: Hello, this is an example email content.'"
-            ],
-            "tool_nodes": [
-                {
-                    "arguments": [
-                        {
-                            "name": "email_address",
-                            "value": "example@email.com"
-                        },
-                        {
-                            "name": "content",
-                            "value": "Hello, this is an example email content."
-                        }
-                    ],
-                    "task": "send_email"
-                }
-            ],
-            "category": "business_and_productivity",
-            "synthetic": false,
-            "my_id": 2071
-        },
-        {
             "id": 26786298,
             "n_tools": 1,
             "sampled_nodes": [
@@ -9591,49 +9433,6 @@
             "category": "business_and_productivity",
             "synthetic": false,
             "my_id": 2078
-        },
-        {
-            "id": 82055369,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "borrow_book_online",
-                    "arguments": [
-                        {
-                            "name": "book",
-                            "type": "string",
-                            "desc": "The book to borrow"
-                        },
-                        {
-                            "name": "library",
-                            "type": "string",
-                            "desc": "The library to borrow the book from"
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I am currently engrossed in the classic literature and would like to read 'The Catcher in the Rye'. Would you be able to arrange it for me to borrow from the Main Library?",
-            "tool_steps": [
-                "Arrange the online borrowing of 'The Catcher in the Rye' from the Main Library."
-            ],
-            "tool_nodes": [
-                {
-                    "task": "borrow_book_online",
-                    "arguments": [
-                        {
-                            "name": "book",
-                            "value": "The Catcher in the Rye"
-                        },
-                        {
-                            "name": "library",
-                            "value": "Main Library"
-                        }
-                    ]
-                }
-            ],
-            "category": "business_and_productivity",
-            "synthetic": false,
-            "my_id": 2079
         },
         {
             "id": 84639193,
@@ -10023,49 +9822,6 @@
             "my_id": 2088
         },
         {
-            "id": 67343234,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "send_sms",
-                    "arguments": [
-                        {
-                            "name": "phone_number",
-                            "type": "string",
-                            "desc": "The phone number to send the sms to"
-                        },
-                        {
-                            "name": "content",
-                            "type": "string",
-                            "desc": "The content of the sms"
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I have just finished a task for a client and I want to update them. Could you assist me in sending an SMS to their number 1234567890 with the content 'Hello, your task has been successfully completed!'?",
-            "tool_steps": [
-                "Step 1: Initiate send_sms API with phone_number set to '1234567890' and content as 'Hello, your task has been successfully completed!'"
-            ],
-            "tool_nodes": [
-                {
-                    "arguments": [
-                        {
-                            "name": "phone_number",
-                            "value": "1234567890"
-                        },
-                        {
-                            "name": "content",
-                            "value": "Hello, your task has been successfully completed!"
-                        }
-                    ],
-                    "task": "send_sms"
-                }
-            ],
-            "category": "entertainment_and_media",
-            "synthetic": false,
-            "my_id": 2089
-        },
-        {
             "id": 49246797,
             "n_tools": 1,
             "sampled_nodes": [
@@ -10238,51 +9994,47 @@
             "my_id": 2093
         },
         {
-            "id": 31844582,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "share_by_social_network",
-                    "arguments": [
-                        {
-                            "name": "content",
-                            "type": "string",
-                            "desc": "The content to share"
-                        },
-                        {
-                            "name": "social_network",
-                            "type": "string",
-                            "desc": "The social network to share the content by, eg. Wechat, Facebook, Twitter, Weibo etc."
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I just clicked a breathtaking picture with a filename 'example.jpg', which I believe would get a lot of appreciation if shared with my Facebook friends. With a simple statement like 'Check out this amazing click' in the caption, would you be able to share it on Facebook on my behalf?",
-            "tool_steps": [
-                "Step 1: Execute the 'share_by_social_network' function providing 'Check out this amazing click' as caption, an image filename 'example.jpg' and 'Facebook' as the intended social networking platform"
-            ],
-            "tool_nodes": [
-                {
-                    "task": "share_by_social_network",
-                    "arguments": [
-                        {
-                            "name": "content",
-                            "value": "Check out this amazing click"
-                        },
-                        {
-                            "name": "image_id",
-                            "value": "example.jpg"
-                        },
-                        {
-                            "name": "social_network",
-                            "value": "Facebook"
-                        }
-                    ]
-                }
-            ],
-            "category": "entertainment_and_media",
-            "synthetic": false,
-            "my_id": 2094
+          "id": 13223493,
+          "n_tools": 1,
+          "sampled_nodes": [
+              {
+                  "task": "deliver_package",
+                  "arguments": [
+                      {
+                          "name": "package",
+                          "type": "string",
+                          "desc": "The package to deliver"
+                      },
+                      {
+                          "name": "destination",
+                          "type": "string",
+                          "desc": "The destination to deliver the package to"
+                      }
+                  ]
+              }
+          ],
+          "instruction": "This vase needs to get to my friend for his birthday. Please send 'my_package' to him at 123 Main St",
+          "tool_steps": [
+              "Initiate the deliver_package system. Ensure to send 'my_package' to the delivery address should be '123 Main St."
+          ],
+          "tool_nodes": [
+              {
+                  "task": "deliver_package",
+                  "arguments": [
+                      {
+                          "name": "package",
+                          "value": "my_package"
+                      },
+                      {
+                          "name": "destination",
+                          "value": "123 Main St"
+                      }
+                  ]
+              }
+          ],
+          "category": "travel_and_transportation",
+          "synthetic": false,
+          "my_id": 2094
         },
         {
             "id": 14288542,
@@ -10455,48 +10207,38 @@
             "my_id": 2099
         },
         {
-            "id": 29821490,
-            "n_tools": 1,
-            "sampled_nodes": [
-                {
-                    "task": "attend_meeting_online",
-                    "arguments": [
-                        {
-                            "name": "topic",
-                            "type": "string",
-                            "desc": "The topic of the meeting"
-                        }
-                    ]
-                }
-            ],
-            "instruction": "I'm interested in Blockchain Technology and want to gain more knowledge about it. Is there an online meeting or seminar happening that I could attend?",
-            "tool_steps": [
-                "Step 1: Call find_blockchain_seminar API with topic: 'Blockchain Technology'",
-                "Step 2: Using the seminar details obtained from the previous step, call attend_seminar_online API"
-            ],
-            "tool_nodes": [
-                {
-                    "arguments": [
-                        {
-                            "name": "topic",
-                            "value": "Blockchain Technology"
-                        }
-                    ],
-                    "task": "find_blockchain_seminar"
-                },
-                {
-                    "arguments": [
-                        {
-                            "name": "seminar",
-                            "value_from_arg": "seminar"
-                        }
-                    ],
-                    "task": "attend_meeting_online"
-                }
-            ],
-            "category": "entertainment_and_media",
-            "synthetic": false,
-            "my_id": 2100
+          "id": 81922716,
+          "n_tools": 1,
+          "sampled_nodes": [
+              {
+                  "task": "take_note",
+                  "arguments": [
+                      {
+                          "name": "content",
+                          "type": "string",
+                          "desc": "The content of the note"
+                      }
+                  ]
+              }
+          ],
+          "instruction": "I just found out which books i want to read next! Save this list for me: Harry Potter 4, Karl Marx and the The devil wears Prada",
+          "tool_steps": [
+              "Step 1: Invoke take_note API, adding a books-to-read list with: Harry Potter 4, Karl Marx and the The devil wears Prada"
+          ],
+          "tool_nodes": [
+              {
+                  "task": "take_note",
+                  "arguments": [
+                      {
+                          "name": "content",
+                          "value": "Books I want to read: Harry Potter 4, Karl Marx and the The devil wears Prada"
+                      }
+                  ]
+              }
+          ],
+          "category": "data",
+          "synthetic": false,
+          "my_id": 2100
         },
         {
             "id": 13699070,
