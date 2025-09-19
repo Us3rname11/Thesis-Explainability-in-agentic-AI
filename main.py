@@ -292,7 +292,9 @@ def run_inseq_analysis(prompt: str, generated_text: str, inseq_model: inseq.Attr
 
     attribution_result = inseq_model.attribute(
         prompt,
-        generated_texts=prompt + generated_text
+        generated_texts=prompt + generated_text,
+        attribution_args={"n_steps": 10},
+        internal_batch_size=1,
     )
     
     return attribution_result
