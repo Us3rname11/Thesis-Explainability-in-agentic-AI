@@ -8,5 +8,5 @@ pip install flash-attn --no-build-isolation
 
 python3 main.py \
     --category business_and_productivity \
-    --model_name "Qwen3-0.6B" \
+    --model_name "Qwen3-1.7B" \
     --attribution "integrated_gradients"
