@@ -131,7 +131,7 @@ def load_tasks_and_filter_solved(
 
     return tasks_to_run#, solved_task_ids, partial_task_ids
 
-def load_and_select_tools(tool_list_file: str, selected_category: str, num_random_tools: int = 0):
+def load_and_select_tools(tool_list_file: str, selected_category: str, num_random_tools: int = 0, seed: int = 42):
     """
     Load the tool-list JSON and prepare a list of callable tool functions for the
     given category. This is the refactored code originally present inline in
@@ -171,10 +171,14 @@ def load_and_select_tools(tool_list_file: str, selected_category: str, num_rando
         if category != selected_category
     ]
 
+    # Set random seed if not passed
+    if seed is not None:
+        random.seed(seed)
+
     # Sample random tools from other categories (if requested)
     if len(other_tools) > num_random_tools:
         random_sample = random.sample(other_tools, num_random_tools)
-        print(f"Adding a random sample of {len(random_sample)} tools from other categories.")
+        print(f"Adding a random sample of {len(random_sample)} tools from other categories (seed={seed}).")
     else:
         random_sample = other_tools  # Take all if fewer than requested
         print(f"Adding all {len(random_sample)} available tools from other categories (fewer than {num_random_tools}).")
@@ -345,6 +349,7 @@ if __name__ == "__main__":
     parser.add_argument("--attribution", type=str, required=True, help="Which attribution method is used by Inseq ('attention', 'saliency', 'integrated_gradients').")
     parser.add_argument("--tools", type=int, default=10, required=False, help="Optional: number of random tools to sample from other categories (default=10).")
     parser.add_argument("--start_id", type=str,required=False, help="Optional: Task ID to start execution with. Must exist in the selected category.")
+    parser.add_argument("--seed", type=int, default=42, required=False, help="Optional: random seed for tool sampling (default=42).")
     args = parser.parse_args()
 
     # --- Select Model ID ---
