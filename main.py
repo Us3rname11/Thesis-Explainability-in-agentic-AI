@@ -371,7 +371,7 @@ if __name__ == "__main__":
     
     # --- Load and Select Tools Dynamically ---
     num_random_tools = args.tools
-    tool_functions, final_tool_names, all_tools_by_category = load_and_select_tools(TOOL_LIST_FILE, selected_category, num_random_tools)
+    tool_functions, final_tool_names, all_tools_by_category = load_and_select_tools(TOOL_LIST_FILE, selected_category, num_random_tools, args.seed)
     
     # --- Load Tasks and Filter Solved Ones ---
     tasks_to_run = load_tasks_and_filter_solved( #tasks_to_run, solved_task_ids, partial_task_ids = load_tasks_and_filter_solved(
