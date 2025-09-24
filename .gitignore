@@ -1,0 +1,13 @@
+# macOS system files
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Notebook checkpoints
+data/.ipynb_checkpoints/
+
+/outputs
+
+# Virtual environment folders (e.g., venv, .venv, env)
